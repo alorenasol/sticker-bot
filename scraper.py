@@ -3,16 +3,16 @@ import requests
 from playwright.sync_api import sync_playwright
 
 URL = "https://jotform.com"
-# We now watch out for both formatting possibilities!
-TARGET_1 = "Coca-Cola"
-TARGET_2 = "Coca Cola"
+
+# Reducido solo a los tres activadores clave esenciales
+PALABRAS_CLAVE = ["coca-cola", "coca cola", "cc1"]
 
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
 
 def send_discord_alert(found_keyword):
     if DISCORD_WEBHOOK_URL:
         payload = {
-            "content": f"🚨 **PANINI ALERT!** The **{found_keyword}** stickers are now live on the form!\nBuy them here immediately: {URL}"
+            "content": f"🚨 **PANINI ALERT!** The **{found_keyword.upper()}** stickers are now live on the form!\nBuy them here immediately: {URL}"
         }
         requests.post(DISCORD_WEBHOOK_URL, json=payload)
     print(f"📨 Discord alert dispatched for {found_keyword}.")
@@ -33,15 +33,16 @@ def check_form():
             # Read all generated text on the expanded sheet
             page_text = page.locator("body").inner_text().lower()
             
-            # Check for either variation
-            if TARGET_1.lower() in page_text:
-                print(f"🎉 Found variation: {TARGET_1}")
-                send_discord_alert(TARGET_1)
-            elif TARGET_2.lower() in page_text:
-                print(f"🎉 Found variation: {TARGET_2}")
-                send_discord_alert(TARGET_2)
-            else:
-                print("ℹ️ Cleared. No matching Coca-Cola items available yet.")
+            algo_encontrado = False
+            for termino in PALABRAS_CLAVE:
+                if termino in page_text:
+                    print(f"🎉 Found variation: {termino}")
+                    send_discord_alert(termino)
+                    algo_encontrado = True
+                    break 
+            
+            if not algo_encontrado:
+                print("ℹ️ Cleared. No matching Coca-Cola or CC1 items available yet.")
                 
         except Exception as e:
             print(f"❌ Error navigating form: {e}")
