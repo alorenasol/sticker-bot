@@ -3,14 +3,19 @@ import requests
 from playwright.sync_api import sync_playwright
 
 URL = "https://jotform.com"
-TARGET_KEYWORD = "Coca-Cola"
+# We now watch out for both formatting possibilities!
+TARGET_1 = "Coca-Cola"
+TARGET_2 = "Coca Cola"
+
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
 
-def send_discord_alert():
+def send_discord_alert(found_keyword):
     if DISCORD_WEBHOOK_URL:
-        payload = {"content": f"🚨 **PANINI ALERT!** The **{TARGET_KEYWORD}** stickers are now live on the form!\nBuy them here immediately: {URL}"}
+        payload = {
+            "content": f"🚨 **PANINI ALERT!** The **{found_keyword}** stickers are now live on the form!\nBuy them here immediately: {URL}"
+        }
         requests.post(DISCORD_WEBHOOK_URL, json=payload)
-    print("📨 Discord alert dispatched.")
+    print(f"📨 Discord alert dispatched for {found_keyword}.")
 
 def check_form():
     with sync_playwright() as p:
@@ -20,16 +25,24 @@ def check_form():
             print("Navigating to Panini Point form...")
             page.goto(URL, wait_until="networkidle")
             
+            # Navigate past the landing selections
             page.click("text=Panini Point - Lincoln Plaza")
             page.click("text=MUNDIAL 2026")
-            page.wait_for_timeout(3000)
+            page.wait_for_timeout(3000) # Give Jotform a moment to render elements
             
-            page_text = page.locator("body").inner_text()
-            if TARGET_KEYWORD.lower() in page_text.lower():
-                print("🎉 Keyword found!")
-                send_discord_alert()
+            # Read all generated text on the expanded sheet
+            page_text = page.locator("body").inner_text().lower()
+            
+            # Check for either variation
+            if TARGET_1.lower() in page_text:
+                print(f"🎉 Found variation: {TARGET_1}")
+                send_discord_alert(TARGET_1)
+            elif TARGET_2.lower() in page_text:
+                print(f"🎉 Found variation: {TARGET_2}")
+                send_discord_alert(TARGET_2)
             else:
-                print(f"ℹ️ Cleared. No sign of {TARGET_KEYWORD} yet.")
+                print("ℹ️ Cleared. No matching Coca-Cola items available yet.")
+                
         except Exception as e:
             print(f"❌ Error navigating form: {e}")
         finally:
