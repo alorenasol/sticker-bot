@@ -1,53 +1,79 @@
 import os
+import random
+import time
 import requests
-from playwright.sync_api import sync_playwright
+from bs4 import BeautifulSoup
 
-URL = "https://jotform.com"
+# =====================================================================
+# CONFIGURACIÓN DEL ENLACE DE JOTFORM (Ya configurado para ti)
+# =====================================================================
+URL = "https://form.jotform.com/paninipointcr/colecciones"
+# =====================================================================
 
-# Reducido solo a los tres activadores clave esenciales
-PALABRAS_CLAVE = ["coca-cola", "coca cola", "cc1"]
-
-DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
-
-def send_discord_alert(found_keyword):
-    if DISCORD_WEBHOOK_URL:
-        payload = {
-            "content": f"🚨 **PANINI ALERT!** The **{found_keyword.upper()}** stickers are now live on the form!\nBuy them here immediately: {URL}"
-        }
-        requests.post(DISCORD_WEBHOOK_URL, json=payload)
-    print(f"📨 Discord alert dispatched for {found_keyword}.")
 
 def check_form():
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-        try:
-            print("Navigating to Panini Point form...")
-            page.goto(URL, wait_until="networkidle")
-            
-            # Navigate past the landing selections
-            page.click("text=Panini Point - Lincoln Plaza")
-            page.click("text=MUNDIAL 2026")
-            page.wait_for_timeout(3000) # Give Jotform a moment to render elements
-            
-            # Read all generated text on the expanded sheet
-            page_text = page.locator("body").inner_text().lower()
-            
-            algo_encontrado = False
-            for termino in PALABRAS_CLAVE:
-                if termino in page_text:
-                    print(f"🎉 Found variation: {termino}")
-                    send_discord_alert(termino)
-                    algo_encontrado = True
-                    break 
-            
-            if not algo_encontrado:
-                print("ℹ️ Cleared. No matching Coca-Cola or CC1 items available yet.")
-                
-        except Exception as e:
-            print(f"❌ Error navigating form: {e}")
-        finally:
-            browser.close()
+    # 1. EVITAR BLOQUEO DEL CRONJOB: Espera un tiempo al azar antes de hacer la petición.
+    # Elige un número de segundos aleatorio entre 10 y 150 (hasta 2 minutos y medio).
+    retraso = random.randint(10, 150)
+    print(
+        f"Cronjob iniciado. Esperando {retraso} segundos para romper el patrón de tráfico..."
+    )
+    time.sleep(retraso)
 
+    # 2. SIMULAR NAVEGADOR HUMANO: Encabezados modernos para evadir firewalls.
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
+
+    try:
+        print(f"Conectando a la página: {URL}")
+        response = requests.get(URL, headers=headers, timeout=15)
+
+        # Verificar si la página respondió correctamente
+        if response.status_code == 200:
+            print("¡Éxito! Conexión establecida con código 200.")
+
+            # Extraer el texto de la página y pasarlo a minúsculas
+            soup = BeautifulSoup(response.text, "html.parser")
+            page_text = soup.get_text().lower()
+
+            # Palabras clave a buscar en el formulario
+            keywords = ["coca-cola", "coca cola", "cocacola", "coca-", "cc1"]
+
+            # Buscar si alguna palabra clave está en el texto
+            for keyword in keywords:
+                if keyword in page_text:
+                    print(f"¡¡¡ALERTA!!! Se encontró la palabra: '{keyword}'")
+
+                    # =========================================================
+                    # HISTORIAL E IMPRESIÓN GRANDE EN GITHUB ACTIONS
+                    # =========================================================
+                    print("*" * 50)
+                    print("  LOS STICKERS DE COCA-COLA YA ESTÁN DISPONIBLES  ")
+                    print("*" * 50)
+
+                    return True
+
+            print("Revisión completada: Aún no están disponibles los stickers.")
+            return False
+
+        else:
+            # Si el servidor responde con error 500 u otro, te lo avisará aquí
+            print(
+                f"ERROR: El servidor respondió con código de estado {response.status_code}"
+            )
+            return False
+
+    except Exception as e:
+        print(f"Ocurrió un error inesperado al conectar: {e}")
+        return False
+
+
+# Ejecutar la función principal una sola vez (ideal para GitHub Actions)
 if __name__ == "__main__":
     check_form()
+
